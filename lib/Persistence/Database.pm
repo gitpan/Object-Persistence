@@ -2,8 +2,8 @@
 ##
 ## Persistence::Database -- Persistent Database. 
 ##
-## $Date: 1999/06/12 11:51:38 $
-## $Revision: 0.13 $
+## $Date: 1999/08/02 22:01:18 $
+## $Revision: 0.14 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -17,7 +17,7 @@ use Data::Dumper;
 use Carp; 
 
 @ISA = qw( Persistence::Object::Simple ); 
-( $VERSION )  = '$Revision: 0.13 $' =~ /\s(\d+\.\d+)\s/;  
+( $VERSION )  = '$Revision: 0.14 $' =~ /\s(\d+\.\d+)\s/;  
 
 sub new { 
 
@@ -63,7 +63,7 @@ sub search {
 	for ( @users ) { 
 		my $user = $class->new ( Id => $_ , Table => $table ); 
 		my $data = $user->{ $key }; 
-		push @found, $user if $data =~ /$regex/;
+		push @found, $user if $data =~ /$regex/i;
 	}
 
 	return \@found; 

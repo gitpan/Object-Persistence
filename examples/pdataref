@@ -1,4 +1,4 @@
-#!/usr/bin/perl -swI..
+#!/usr/bin/perl -swI.. -I../lib
 ##
 ## pdataref  - Persistent Data Ref.  Non-OO usage. 
 ##

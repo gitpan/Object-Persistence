@@ -2,7 +2,9 @@ Changes
 MANIFEST
 Makefile.PL
 test.pl
-Persistence/Object/Simple.pm
-Persistence/Database.pm
+lib/Persistence/Object/Simple.pm
+lib/Persistence/Database.pm
 examples/pdataref
 examples/Plist.pm
+examples/unique
+

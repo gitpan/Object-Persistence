@@ -2,8 +2,8 @@
 ##
 ## Persistence::Object::Simple -- Persistence For Perl5 Objects.  
 ##
-## $Date: 1999/07/20 10:21:11 $
-## $Revision: 0.43 $
+## $Date: 1999/10/13 23:08:43 $
+## $Revision: 0.47 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -12,12 +12,13 @@
 ## it under the same terms as Perl itself.
 
 package Persistence::Object::Simple;
+use Digest::MD5; 
 use Data::Dumper;
 use Carp;
 use Fcntl;
 use vars qw( $VERSION );
 
-( $VERSION )  = '$Revision: 0.43 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
+( $VERSION )  = '$Revision: 0.47 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
 
 my $DOPE      = "/tmp";     #-- The default Directory Of Persistent Entities
 my $MAXTRIES  = 250;        #-- TTL counter for generating a unique file
@@ -35,12 +36,14 @@ sub new {                   #-- Constructor.  Creates and inits a P::O::S
 
     my ( $class, %args ) = @_; 
     my $self = {}; 
-    my $fn = $args{ __Fn }; 
-    my $exists = 1 if $args{ __Create } =~ /no/i;
+    my $fn = $args{ __Fn };     
+    my $exists; 
+    $exists = 1 if $args{ __Create } eq "no";
+    $exists = 1 if $args{ __Create } eq "No";
 
     return undef if !(-e $fn) && $exists; 
     unless ( $fn ) { 
-        $fn = $class->uniqfile ( $args{ __Dope } || $DOPE );
+        $fn = $class->uniqfile ( $args{ __Dope } || $DOPE, $args{ __Random } );
         return undef unless $fn;
     }
 
@@ -180,10 +183,10 @@ sub unlock {
 
 sub uniqfile { 
 
-    my ( $class, $dir ) = @_; 
+    my ( $class, $dir, $random ) = @_; 
     my $fn; my $counter; 
 
-    do { $fn = "@{[time]}.@{[int rand 2**8]}"; $counter++ }
+    do { $fn = Digest::MD5::md5_hex( "@{[time]}.@{[int rand 2**8]}.$random" ); $counter++ }
         until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT ) or $counter > $MAXTRIES;
     close C; 
     
@@ -250,6 +253,13 @@ __Fn instance variable.  This argument is ignored when __Fn is provided.
 A boolean attribute that can either take a "Yes" or a "No" value. It informs
 the method whether to create an object image if one doesn't already exist.
 __Create is "yes" by default.
+
+=item B<__Random> 
+
+Random string used as input for computing the unique object name. This
+should be used when unpredictable object names are required for security
+reasons. The random string can be generated with Crypt::Random, a module
+which provides cryptographically secure random numbers.
 
 =back 
 
@@ -416,6 +426,11 @@ Vipul Ved Prakash, mail@vipul.net
 Copyright (c) 1998, Vipul Ved Prakash.  All rights reserved.
 This code is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+=head1 CONTRIBUTORS 
+
+ Mike Blazer <blazer@mail.nevalink.ru>
+ Holger Heimann <hh@it-sec.de>
 
 =cut
  

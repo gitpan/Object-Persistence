@@ -3,5 +3,5 @@ use ExtUtils::MakeMaker;
 # the contents of the Makefile that is written.
 WriteMakefile(
     'NAME'	=> 'Object-Persistence', 
-    'VERSION_FROM' => 'Persistence/Object/Simple.pm', # finds $VERSION
+    'VERSION_FROM' => 'lib/Persistence/Object/Simple.pm', # finds $VERSION
 );
