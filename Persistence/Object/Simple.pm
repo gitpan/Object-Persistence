@@ -2,8 +2,8 @@
 ##
 ## Persistence::Object::Simple -- Persistence For Perl5 Objects. 
 ##
-## $Date: 1999/01/16 00:51:34 $
-## $Revision: 0.32 $
+## $Date: 1999/03/15 12:37:03 $
+## $Revision: 0.33 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -14,10 +14,12 @@
 package Persistence::Object::Simple; 
 use Data::Dumper; 
 use Carp; 
+use Fcntl; 
 use vars qw( $VERSION ); 
 
+
 # -- Module Version. 
-( $VERSION )  = '$Revision: 0.32 $' =~ /\s+(\d+\.\d+)\s+/;  
+( $VERSION )  = '$Revision: 0.33 $' =~ /\s+(\d+\.\d+)\s+/;  
 
 # -- The default Directory Of Persistent Entities. 
 my $DOPE      = "/tmp";   
@@ -37,7 +39,7 @@ sub new {
     my $fn = $args{ __Fn }; 
 
     unless ( $fn ) { 
-        my $dir = $args{ __Dir } || $DOPE; 
+        my $dir = $args{ __Dope } || $DOPE; 
         $fn = $class->uniqfile ( $dir ); 
     }
 
@@ -180,8 +182,8 @@ sub uniqfile {
     my ( $class, $dir ) = @_; 
     my $fn; 
 
-     do { $fn = "@{[time]}.@{[int rand 2**8]}" }  
-        until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT ); 
+    do { $fn = "@{[time]}.@{[int rand 2**8]}" }
+        until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT );
     close C; 
 
     return "$dir/$fn";
