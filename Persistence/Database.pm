@@ -2,8 +2,8 @@
 ##
 ## Persistence::Database -- Persistent Database. 
 ##
-## $Date: 1999/01/16 23:19:01 $
-## $Revision: 0.11 $
+## $Date: 1999/06/12 11:51:38 $
+## $Revision: 0.13 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -17,14 +17,20 @@ use Data::Dumper;
 use Carp; 
 
 @ISA = qw( Persistence::Object::Simple ); 
-( $VERSION )  = '$Revision: 0.11 $' =~ /\s(\d+\.\d+)\s/;  
+( $VERSION )  = '$Revision: 0.13 $' =~ /\s(\d+\.\d+)\s/;  
 
 sub new { 
 
 	my ( $class, %args ) = @_;
 	my ( $id ); 
-	my $table = $args{ Table };
+	my $table = $args{ Table } || $args{ __Dope }; 
 	my $self = {}; 
+
+    if ( $args{ __Fn } ) { 
+        my ($tab) = $args{ __Fn }; ($tab) = $tab =~ m:(.*)/:; 
+        my ($id)  = $args{ __Fn }; $id  =~ s:.*/::; 
+        $table = $tab; $args{ Id } = $id;
+    }
 
 	croak "Table $table doesn't exist." unless -d $table; 
 
@@ -35,7 +41,7 @@ sub new {
 		return $self; 
 	}
 
-	$self->{ Table } = $table; 
+    $self->{ Table } = $table;
 	return bless $self, $class; 
 
 } 
@@ -66,8 +72,8 @@ sub search {
 
 sub commit { 
 
-	my ( $self ) = @_; 
-	return $self->SUPER::commit (); 
+	my ( $self, %args ) = @_; 
+	return $self->SUPER::commit ( %args ); 
 
 } 
 
@@ -79,7 +85,6 @@ sub load  {
 
 }
 
-
 sub AUTOLOAD { 
 
 	my ( $self, $value ) = @_; 
@@ -88,7 +93,7 @@ sub AUTOLOAD {
 	$key =~ s/^(.)/uc $1/e; 
 
 	if ( $value ) { 
-		$self->{ $key } = $value; 
+		$self->{ $key } = $value;
 		$self->commit ();
 	}
 

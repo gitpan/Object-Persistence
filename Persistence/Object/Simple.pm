@@ -1,9 +1,9 @@
 #!/usr/bin/perl -s
 ##
-## Persistence::Object::Simple -- Persistence For Perl5 Objects. 
+## Persistence::Object::Simple -- Persistence For Perl5 Objects.  
 ##
-## $Date: 1999/06/01 19:41:10 $
-## $Revision: 0.38 $
+## $Date: 1999/06/22 16:43:19 $
+## $Revision: 0.42 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -17,53 +17,47 @@ use Carp;
 use Fcntl;
 use vars qw( $VERSION );
 
+( $VERSION )  = '$Revision: 0.42 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
 
-# -- Module Version. 
-( $VERSION )  = '$Revision: 0.38 $' =~ /\s+(\d+\.\d+)\s+/;
+my $DOPE      = "/tmp";     #-- The default Directory Of Persistent Entities
+my $MAXTRIES  = 250;        #-- TTL counter for generating a unique file
 
-# -- The default Directory Of Persistent Entities. 
-my $DOPE      = "/tmp";
-my $MAXTRIES  = 250;
-
-sub dope {
+sub dope {                  #-- Default DOPE access method
 
     my ( $self, $dope ) = @_;
     ${ $self->{ __DOPE } } = $dope if $dope;
     ${ $self->{ __DOPE } };
 
 }
+                                
+sub new {                   #-- Constructor.  Creates and inits a P::O::S 
+                            #-- object instance. Binds class data. 
 
-sub new { 
-    
     my ( $class, %args ) = @_; 
     my $self = {}; 
     my $fn = $args{ __Fn }; 
     my $exists = 1 if $args{ __Create } =~ /no/i;
 
-    if ( $fn && $exists ) { 
-        return undef unless -e $fn
-    }
-        
+    return undef if !(-e $fn) && $exists; 
     unless ( $fn ) { 
-        my $dir = $args{ __Dope } || $DOPE; 
-        $fn = $class->uniqfile ( $dir ); 
+        $fn = $class->uniqfile ( $args{ __Dope } || $DOPE );
         return undef unless $fn;
     }
 
     $self->{ __Fn } = $fn; 
     $self->{ __DOPE } = \$DOPE; 
 
-    my $existing = $class->load ( __Fn => $fn ); 
-    $self = $existing if $existing; 
-
-    for ( keys %args ) { $self->{ $_ } = $args{ $_ } } 
+    
+    my $existing = $class->load ( __Fn => $fn );  
+    $self = $existing if $existing;              
+    for ( keys %args ) { $self->{ $_ } = $args{ $_ } }  
 
     bless $self, $class; 
 
 } 
 
-sub dumper { 
-
+sub dumper {                #-- Returns the Data::Dumper object associated 
+                            #-- with the instance
     my $self = shift; 
 
     $self->{ __Dumper } = new Data::Dumper ( [ $self ] ); 
@@ -71,8 +65,8 @@ sub dumper {
 
 }
 
-sub commit { 
-
+sub commit {                #-- Commits the object to disk.  Works as a class
+                            #-- method as well.  
     my ( $self, %args ) = @_; 
     my $class = ref $self || $self;
     my ( $d, $fn );
@@ -91,7 +85,7 @@ sub commit {
             croak "$fn exists. Can't overwrite." if -e $fn;
     }
  
-    if ( !($fn) ) {  # -- generate a uniq filename in the
+    unless ( $fn ) {  # -- generate a uniq filename in the
         $args{ __Dope } = $DOPE unless $args{ __Dope }; # -- new dope
         $fn = $class->uniqfile ( $args{ __Dope } );
     }
@@ -110,7 +104,7 @@ sub commit {
 
     unless ( $locked_fh ) { 
         open C, ">$fn" || croak "Can't open $fn for writing."; 
-        flock C, 2; 
+        eval { flock C, 2 }; undef $@;
         $fh = *C{ IO }; 
     } 
 
@@ -133,10 +127,9 @@ sub load {
     return undef unless -e $args{ __Fn };
     
     open C, $args{ __Fn } || croak "Couldn't open $args{ __Fn }."; 
-    flock C, 2; 
-    my @object = <C>; close C; 
-    my $object = eval join '', @object;
-    croak "Syntax Error in $args{ __Fn }" if $@; 
+    eval { flock C, 2 }; undef $@;
+    my @object = <C>; close C; my $object = eval join '', @object;
+    croak "$args{ __Fn } is corrupt. Object loading aborted." if $@; 
     $object->{ __Fn } = $args{ __Fn } if ref $object eq 'HASH';
     return $object; 
 
@@ -171,7 +164,7 @@ sub lock {
     my $fn = $self->{ __Fn }; 
 	$self->commit unless -e $fn; 
     open ( F, "+<$fn" ) || croak "Couldn't open $fn for locking. Commit first!"; 
-    flock F, 2; 
+    eval { flock F, 2 }; undef $@;
     $self->{ __Lock } = *F{ IO }; 
 
 }
@@ -179,8 +172,7 @@ sub lock {
 sub unlock { 
 
     my ( $self ) = @_; 
-    my $F = $self->{ __Lock }; 
-    close $F; 
+    my $F = $self->{ __Lock }; close $F; 
     undef $self->{ __Lock };
     
 }
