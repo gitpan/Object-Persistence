@@ -2,8 +2,8 @@
 ##
 ## Persistence::Object::Simple -- Persistence For Perl5 Objects. 
 ##
-## $Date: 1999/04/04 14:37:07 $
-## $Revision: 0.34 $
+## $Date: 1999/05/27 22:43:57 $
+## $Revision: 0.35 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -11,24 +11,24 @@
 ## This code is free software; you can redistribute it and/or modify
 ## it under the same terms as Perl itself.
 
-package Persistence::Object::Simple; 
-use Data::Dumper; 
-use Carp; 
-use Fcntl; 
-use vars qw( $VERSION ); 
+package Persistence::Object::Simple;
+use Data::Dumper;
+use Carp;
+use Fcntl;
+use vars qw( $VERSION );
 
 
 # -- Module Version. 
-( $VERSION )  = '$Revision: 0.34 $' =~ /\s+(\d+\.\d+)\s+/;  
+( $VERSION )  = '$Revision: 0.35 $' =~ /\s+(\d+\.\d+)\s+/;
 
 # -- The default Directory Of Persistent Entities. 
-my $DOPE      = "/tmp";   
-my $MAXTRIES  = 250; 
+my $DOPE      = "/tmp";
+my $MAXTRIES  = 250;
 
-sub dope { 
+sub dope {
 
-    my ( $self, $dope ) = @_; 
-    ${ $self->{ __DOPE } } = $dope if $dope; 
+    my ( $self, $dope ) = @_;
+    ${ $self->{ __DOPE } } = $dope if $dope;
     ${ $self->{ __DOPE } };
 
 }
@@ -38,7 +38,12 @@ sub new {
     my ( $class, %args ) = @_; 
     my $self = {}; 
     my $fn = $args{ __Fn }; 
+    my $exists = 1 if $args{ __Create } =~ /no/i;
 
+    if ( $fn && $exists ) { 
+        return undef unless -e $fn
+    }
+        
     unless ( $fn ) { 
         my $dir = $args{ __Dope } || $DOPE; 
         $fn = $class->uniqfile ( $dir ); 
@@ -98,7 +103,7 @@ sub commit {
     # -- delete extra object data and class data-refs if this looks like 
     # -- an object. 
     if ( ref $self ) { 
-        for ( keys %$self ) { delete $self->{ $_ } if /^__(?:Dumper|DOPE|Fn|Lock)/ }; 
+        for ( keys %$self ) { delete $self->{ $_ } if /^__(?:Dumper|DOPE|Fn|Lock|Create)/ }; 
     }
 
     unless ( $locked_fh ) { 
@@ -113,7 +118,6 @@ sub commit {
     if ( ref $self ) { 
         $self->{ __Fn } = $fn; 
         $self->{ __Lock } = $locked_fh if $locked_fh; 
-    #    $self->{ __Dumper } = $d; 
     }
 
     return $fn; 
@@ -173,7 +177,7 @@ sub lock {
 sub unlock { 
 
     my ( $self ) = @_; 
-    $F = $self->{ __Lock }; 
+    my $F = $self->{ __Lock }; 
     close $F; 
     undef $self->{ __Lock };
     
@@ -193,6 +197,7 @@ sub uniqfile {
 }
 
 'True Value';
+
 __END__
 
 
@@ -245,6 +250,12 @@ to store object data in the specified directory.  The object identifier is
 the complete pathname of the object's persistent image and is placed in the 
 __Fn instance variable.  This argument is ignored when __Fn is provided.
 
+=item B<__Create>
+
+A boolean attribute that can either take "Yes" or "No". It informs the
+method whether to create an object image if one doesn't already exist.
+__Create is "yes" by default.
+
 =back 
 
 =back 
@@ -268,7 +279,8 @@ can be altered with the dope() method.
  # -- generates a unique filename in defalt dope (/tmp)
  $po  = new Persistence::Object::Simple; 
  print $po->{ __Fn }; 
-       
+
+=back
 
 =head1 METHODS
 
@@ -355,13 +367,16 @@ provided by the inheriting module. Moreover, if you use your objects to
 store refs to class data, you'd need to bind and detach these refs at load() 
 and commit().  Otherwise, you'll end up with a separate copy of class data 
 with every object which will eventually break your code.  See L<perlobj>, 
-L<perlbot>, and L<perltoot>, on why you should use objects to access class data. 
+L<perlbot>, and L<perltoot>, on why you should use objects to access 
+class data. 
 
-Persistence::Database inherits this module to provide a transparently persistent 
-database class.  It overrides new(), load() and commit() methods.  There is no class data 
-to bind/detach, but load() and commit() are overridden to serve as examples/templates
-for derived classes.  Data instance methods, AUTOLOADed at runtime, automatically commit() 
-when data is stored in Instance Variables.  For more details, Read The Fine Sources.  
+Persistence::Database inherits this module to provide a transparently 
+persistent database class.  It overrides new(), load() and commit() 
+methods.  There is no class data to bind/detach, but load() and commit() 
+are overridden to serve as examples/templates for derived classes.  
+Data instance methods, AUTOLOADed at runtime, automatically commit() 
+when data is stored in Instance Variables.  For more details, Read The 
+Fine Sources.  
 
 =head1 Non-OO Usage
 
