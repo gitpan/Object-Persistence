@@ -2,8 +2,8 @@
 ##
 ## Persistence::Object::Simple -- Persistence For Perl5 Objects.  
 ##
-## $Date: 1999/06/22 16:43:19 $
-## $Revision: 0.42 $
+## $Date: 1999/07/20 10:21:11 $
+## $Revision: 0.43 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -17,7 +17,7 @@ use Carp;
 use Fcntl;
 use vars qw( $VERSION );
 
-( $VERSION )  = '$Revision: 0.42 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
+( $VERSION )  = '$Revision: 0.43 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
 
 my $DOPE      = "/tmp";     #-- The default Directory Of Persistent Entities
 my $MAXTRIES  = 250;        #-- TTL counter for generating a unique file
@@ -108,7 +108,8 @@ sub commit {                #-- Commits the object to disk.  Works as a class
         $fh = *C{ IO }; 
     } 
 
-    print { $locked_fh ? $locked_fh : $fh } $d->Dump (); 
+    print { $locked_fh ? $locked_fh : $fh } 
+	defined &Data::Dumper::Dumpxs ? $d->Dumpxs() : $d->Dump(); 
     close $fh if $fh; 
 
     if ( ref $self ) { 
