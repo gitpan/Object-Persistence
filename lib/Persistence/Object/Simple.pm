@@ -18,7 +18,7 @@ use Carp;
 use Fcntl;
 use vars qw( $VERSION );
 
-( $VERSION )  = '$Revision: 0.47 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
+( $VERSION )  = '$Revision: 0.92 $' =~ /\s+(\d+\.\d+)\s+/;  #-- Module Version
 
 my $DOPE      = "/tmp";     #-- The default Directory Of Persistent Entities
 my $MAXTRIES  = 250;        #-- TTL counter for generating a unique file
@@ -38,8 +38,10 @@ sub new {                   #-- Constructor.  Creates and inits a P::O::S
     my $self = {}; 
     my $fn = $args{ __Fn };     
     my $exists; 
-    $exists = 1 if $args{ __Create } eq "no";
-    $exists = 1 if $args{ __Create } eq "No";
+	$args{ __Create } ||= "";
+    if ($args{ __Create } and lc($args{ __Create }) eq "no") {
+        $exists = 1; 
+    }
 
     return undef if !(-e $fn) && $exists; 
     unless ( $fn ) { 
@@ -106,9 +108,15 @@ sub commit {                #-- Commits the object to disk.  Works as a class
     }
 
     unless ( $locked_fh ) { 
-        open C, ">$fn" || croak "Can't open $fn for writing."; 
-        eval { flock C, 2 }; undef $@;
-        $fh = *C{ IO }; 
+        # guard against disallowed characters in filename (basically those 
+        # which might mess up the open() call)
+        if (($fn) = ($fn =~ /^([^<>|+]+)$/)) {
+            open C, ">$fn" || croak "Can't open $fn for writing."; 
+            eval { flock C, 2 }; undef $@;
+            $fh = *C{ IO }; 
+        } else {
+            die "Filename '$fn' contains inappropriate characters";
+        }
     } 
 
     print { $locked_fh ? $locked_fh : $fh } 
@@ -132,11 +140,23 @@ sub load {
     
     open C, $args{ __Fn } || croak "Couldn't open $args{ __Fn }."; 
     eval { flock C, 2 }; undef $@;
-    my @object = <C>; close C; my $object = eval join '', @object;
-    croak "$args{ __Fn } is corrupt. Object loading aborted." if $@; 
-    $object->{ __Fn } = $args{ __Fn } if ref $object eq 'HASH';
-    return $object; 
 
+    local $/ = undef; # slurp mode
+    my $objectfile = <C>; 
+    close C; 
+
+    # untaint the input meaningfully
+    if ($objectfile =~ /^(\$VAR1 = bless[^;]+;)$/s) {
+        my $object = eval "$1";
+        croak "$args{ __Fn } is corrupt. Object loading aborted." if $@; 
+
+        $object->{ __Fn } = $args{ __Fn } if ref $object eq 'HASH';
+        return $object; 
+    } elsif ($objectfile =~ /^$/) {
+        return undef;
+    } else {
+        croak "Tainted data from $args{__Fn} looks unsafe. Object loading aborted.";
+    }
 }
 
 sub expire { 
@@ -186,10 +206,15 @@ sub uniqfile {
     my ( $class, $dir, $random ) = @_; 
     my $fn; my $counter; 
 
-    do { $fn = Digest::MD5::md5_hex( "@{[time]}.@{[int rand 2**8]}.$random" ); $counter++ }
-        until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT ) or $counter > $MAXTRIES;
+    do { 
+        $fn = Digest::MD5::md5_hex( "@{[time]}.@{[int rand 2**8]}.$random" ); 
+        ($fn) = ($fn =~ m!([^/<>|;]+)!);
+        $counter++ ;
+    }
+    until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT ) 
+        or $counter > $MAXTRIES;
+
     close C; 
-    
     return undef if $counter > $MAXTRIES;
     return "$dir/$fn";
 }
@@ -286,6 +311,8 @@ can be altered with the dope() method.
  print $po->{ __Fn }; 
 
 =back
+
+=cut
 
 =head1 METHODS
 
@@ -419,18 +446,31 @@ perl(1).
 
 =head1 AUTHOR
 
-Vipul Ved Prakash, mail@vipul.net
+Vipul Ved Prakash, <mail@vipul.net>
 
 =head1 COPYRIGHT 
 
-Copyright (c) 1998, Vipul Ved Prakash.  All rights reserved.
-This code is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself.
+Copyright (c) 1998, Vipul Ved Prakash. All rights reserved. This code is
+free software; you can redistribute it and/or modify it under the same
+terms as Perl itself.
 
 =head1 CONTRIBUTORS 
 
- Mike Blazer <blazer@mail.nevalink.ru>
- Holger Heimann <hh@it-sec.de>
+=over 4
+
+=item * 
+
+Mike Blazer <blazer@mail.nevalink.ru> helped with the Win32 Port.
+
+=item * 
+
+Holger Heimann <hh@it-sec.de> helped with debugging.
+
+=item *
+
+Kirrily 'Skud' Robert, <skud@infotrope.net> patched P::O::S to be taint-friendly.
+
+=back
 
 =cut
  
