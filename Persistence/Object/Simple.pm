@@ -2,8 +2,8 @@
 ##
 ## Persistence::Object::Simple -- Persistence For Perl5 Objects. 
 ##
-## $Date: 1999/03/15 12:37:03 $
-## $Revision: 0.33 $
+## $Date: 1999/04/04 14:37:07 $
+## $Revision: 0.34 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -19,10 +19,11 @@ use vars qw( $VERSION );
 
 
 # -- Module Version. 
-( $VERSION )  = '$Revision: 0.33 $' =~ /\s+(\d+\.\d+)\s+/;  
+( $VERSION )  = '$Revision: 0.34 $' =~ /\s+(\d+\.\d+)\s+/;  
 
 # -- The default Directory Of Persistent Entities. 
 my $DOPE      = "/tmp";   
+my $MAXTRIES  = 250; 
 
 sub dope { 
 
@@ -41,6 +42,7 @@ sub new {
     unless ( $fn ) { 
         my $dir = $args{ __Dope } || $DOPE; 
         $fn = $class->uniqfile ( $dir ); 
+        return undef unless $fn;
     }
 
     $self->{ __Fn } = $fn; 
@@ -180,12 +182,13 @@ sub unlock {
 sub uniqfile { 
 
     my ( $class, $dir ) = @_; 
-    my $fn; 
+    my $fn; my $counter; 
 
-    do { $fn = "@{[time]}.@{[int rand 2**8]}" }
-        until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT );
+    do { $fn = "@{[time]}.@{[int rand 2**8]}"; $counter++ }
+        until sysopen ( C, "$dir/$fn" , O_RDWR|O_EXCL|O_CREAT ) or $counter > $MAXTRIES;
     close C; 
-
+    
+    return undef if $counter > $MAXTRIES;
     return "$dir/$fn";
 }
 
@@ -201,7 +204,7 @@ Persistence::Object::Simple - Object Persistence with Data::Dumper.
 =head1 SYNOPSIS
 
   use Persistence::Object::Simple; 
-  my $perobj = new Persistence::Object::Simple ( __Fn   => $filename ); 
+  my $perobj = new Persistence::Object::Simple ( __Fn   => $path ); 
   my $perobj = new Persistence::Object::Simple ( __Dope => $directory ); 
   my $perobj = new Persistence::Object; 
   my $perobj->commit (); 
@@ -209,17 +212,15 @@ Persistence::Object::Simple - Object Persistence with Data::Dumper.
 
 =head1 DESCRIPTION
 
-The Class provides persistence to its objects.  Object definitions are stored 
-as stringified Perl data structures generated with Data::Dumper.  These 
-definitions are suitable for manual editing, network transfers, as well external 
-processing of object data. (from outside the class interface.)
+P::O::S provides persistence functionality to its objects.  Object definitions
+are stored as stringified perl data structures, generated with Data::Dumper,
+that are amenable to manual editing and external processing from outside the
+class interface.
 
-The Class provides persistence to a blessed hash container that holds
-the object data.  (This may change later if I decide to attach object data 
-to the reference using '~' magic.) The associative array container 
-can store objects based on other data structures as well.  See 
-L<"Inheriting Persistence::Object::Simple">,  L<"Non-OO Usage"> and the Persistent 
-list class example (examples/Plist.pm).
+Persistence is achieved with a blessed hash container that holds the object
+data. The container can store objects that employ non-hash structures as
+well. See L<"Inheriting Persistence::Object::Simple">, L<"Non-OO Usage"> and
+the persistent list class example (examples/Plist.pm).
 
 =head1 CONSTRUCTOR 
 
@@ -227,22 +228,22 @@ list class example (examples/Plist.pm).
 
 =item B<new()>
 
-Creates a new Persistent Object or retrieves an existing object.  Takes a hash 
-argument with following possible keys: 
+Creates a new Persistent Object or retrieves an existing object definition.
+Takes a hash argument with following possible keys:
 
 =over 8
 
 =item B<__Fn> 
 
-Pathname of the file that contains the persistent object definition.  This 
-filename is also the object identifier and required at object retrieval. 
+Pathname of the file that contains the persistent object definition. __Fn is
+treated as the object identifier and required at object retrieval.
 
 =item B<__Dope> 
 
-The Directory of Persistent Entities.  If a directory name is provided new() 
-generates a filename of the object and prepends this directory name to it.  
-The pathname is the identifier of this new object.  This argument is ignored if 
-__Fn is present.  
+The Directory of Persistent Entities.  P::O::S generates a unique filename 
+to store object data in the specified directory.  The object identifier is 
+the complete pathname of the object's persistent image and is placed in the 
+__Fn instance variable.  This argument is ignored when __Fn is provided.
 
 =back 
 
@@ -252,10 +253,9 @@ __Fn is present.
 
 =item 
 
-When new() is invoked without any arguments it uses the default directory, "/tmp", 
-to store the object definition. The default directory can be set with the dope() 
-method.  When the __Fn value is not provided, new() generates a unique filename 
-in the specified/default directory of persistence. 
+When new() is called without any arguments it uses a unique file in the 
+default DOPE, "/tmp", to store the object definition. The default DOPE
+can be altered with the dope() method. 
 
  $po = new Persistence::Object::Simple 
        ( __Fn => "/tmp/codd/suse5.2.codd" ); 
@@ -277,7 +277,7 @@ in the specified/default directory of persistence.
 =item B<commit()> 
 
 Commits the object to disk.  Like new() it takes __Fn and __Dope arguments, 
-but __Dope takes precedence.  When a __Dope argument is provided, the directory
+but __Dope takes precedence.  When a __Dope is provided, the directory
 portion of the object filename is ignored and the object is stored in the 
 specified directory. 
 
@@ -297,8 +297,8 @@ Irrevocably destructs the object.  Removes the persistent entry from the DOPE.
 
 If you want to keep a backup of the object before destroying it, 
 use commit() to store in a different location. Undefing $obj->{ __Fn } 
-before committing will force commit() to generate a unique filename 
-in the new directory for storing the definition.
+before writing to the disk will force commit() to store the object in a 
+unique file in the specified DOPE. 
 
     $perobj->{ __Fn } = undef; 
     $perobj->commit ( __Dope => "/tmp/dead" ); 
@@ -306,20 +306,20 @@ in the new directory for storing the definition.
 
 =item B<move()> 
 
-Move the object to a different directory. 
+Moves the object to a different DOPE. 
 
     $perobj->move ( __Dope => "/some/place/else" ); 
 
 =item B<lock()> 
 
-Get an exclusive lock.  The owner of the lock can commit() without 
+Gets an exclusive lock.  The owner of the lock can commit() without 
 unlocking.  
 
     $perobj->lock (); 
 
 =item  B<unlock()>
 
-Release the lock. 
+Releases the lock. 
 
     $perobj->unlock ();
 
