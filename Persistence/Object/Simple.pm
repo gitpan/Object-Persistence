@@ -2,8 +2,8 @@
 ##
 ## Persistence::Object::Simple -- Persistence For Perl5 Objects. 
 ##
-## $Date: 1999/05/27 22:43:57 $
-## $Revision: 0.35 $
+## $Date: 1999/06/01 19:41:10 $
+## $Revision: 0.38 $
 ## $State: Exp $
 ## $Author: root $
 ##
@@ -19,7 +19,7 @@ use vars qw( $VERSION );
 
 
 # -- Module Version. 
-( $VERSION )  = '$Revision: 0.35 $' =~ /\s+(\d+\.\d+)\s+/;
+( $VERSION )  = '$Revision: 0.38 $' =~ /\s+(\d+\.\d+)\s+/;
 
 # -- The default Directory Of Persistent Entities. 
 my $DOPE      = "/tmp";
@@ -74,6 +74,7 @@ sub dumper {
 sub commit { 
 
     my ( $self, %args ) = @_; 
+    my $class = ref $self || $self;
     my ( $d, $fn );
     $fn = $args{ __Fn }  || $self->{ __Fn }; 
 
@@ -83,19 +84,19 @@ sub commit {
         $d = new Data::Dumper ( [ $args{ Data } ] ); 
     } 
 
-    # -- generate a temp filename for the class method call. 
-    unless ( ref $self || $fn ) { 
-        $args{ __Dope } = $DOPE unless $args{ __Dope };
-        $fn = $class->uniqfile ( $args{ __Dope } );
-    }
-
-    if ( $args{ __Dope } ) { 
+    if ( $args{ __Dope } && $fn ) {  # -- change to a new dope
             $fn =~ s:.*/::; 
             $args{ __Dope } =~ s:/$::;
             $fn = $args{ __Dope } . "/$fn"; 
             croak "$fn exists. Can't overwrite." if -e $fn;
     }
-    
+ 
+    if ( !($fn) ) {  # -- generate a uniq filename in the
+        $args{ __Dope } = $DOPE unless $args{ __Dope }; # -- new dope
+        $fn = $class->uniqfile ( $args{ __Dope } );
+    }
+
+   
     my $locked_fh = $self->{ __Lock }; 
     seek $locked_fh, 0, 0 if $locked_fh;
     my $fh; 
@@ -103,7 +104,8 @@ sub commit {
     # -- delete extra object data and class data-refs if this looks like 
     # -- an object. 
     if ( ref $self ) { 
-        for ( keys %$self ) { delete $self->{ $_ } if /^__(?:Dumper|DOPE|Fn|Lock|Create)/ }; 
+        for ( keys %$self ) { delete $self->{ $_ } 
+            if /^__(?:Dumper|DOPE|Fn|Lock|Create)/ }; 
     }
 
     unless ( $locked_fh ) { 
@@ -144,7 +146,6 @@ sub expire {
 
     my ( $self ) = @_; 
     my $fn = $self->{ __Fn };
-
     return 1 if unlink $fn; 
 
 } 
@@ -155,6 +156,7 @@ sub move {
     my   $class = ref $self; 
 
     $self->expire (); 
+    $self->{ __Fn } = undef if $args{ __Fnalter };
     my $fn = $self->commit ( %args ); 
 
     my $moved = $class->new ( __Fn => $fn ); 
@@ -224,7 +226,7 @@ class interface.
 
 Persistence is achieved with a blessed hash container that holds the object
 data. The container can store objects that employ non-hash structures as
-well. See L<"Inheriting Persistence::Object::Simple">, L<"Non-OO Usage"> and
+well. See L<"Inheriting Persistence::Object::Simple">, L<"Class Methods"> and
 the persistent list class example (examples/Plist.pm).
 
 =head1 CONSTRUCTOR 
@@ -252,8 +254,8 @@ __Fn instance variable.  This argument is ignored when __Fn is provided.
 
 =item B<__Create>
 
-A boolean attribute that can either take "Yes" or "No". It informs the
-method whether to create an object image if one doesn't already exist.
+A boolean attribute that can either take a "Yes" or a "No" value. It informs
+the method whether to create an object image if one doesn't already exist.
 __Create is "yes" by default.
 
 =back 
@@ -299,7 +301,7 @@ specified directory.
 
 
 
-Commit() can also store non-object data refs. See L<"Non-OO Usage">. 
+Commit() can also store non-object data refs. See L<"Class Methods">. 
 
 =item B<expire()> 
 
@@ -321,6 +323,13 @@ unique file in the specified DOPE.
 Moves the object to a different DOPE. 
 
     $perobj->move ( __Dope => "/some/place/else" ); 
+
+Specifying __Fnalter attribute will force move() to drop the existing file
+name and generate a new one in specified directory. This can be useful when
+backing up objects that may have the same filename. 
+    
+    $perobj-> ( __Dope => 'queues/backup', 
+                __Fnalter => 1 ); 
 
 =item B<lock()> 
 
@@ -378,19 +387,24 @@ Data instance methods, AUTOLOADed at runtime, automatically commit()
 when data is stored in Instance Variables.  For more details, Read The 
 Fine Sources.  
 
-=head1 Non-OO Usage
+=head1 Class Methods
 
-load() and commit() can be used for storing non-object references.  Here's 
-a section from examples/pdataref: 
+load() and commit() can be used for storing non-object references.  commit() 
+and load() can be invoked as class methods with a "Data" argument.   
+Some examples: 
+
+ # generates a unique filename in /tmp 
+ my $fn = Persistence::Object::Simple->commit (
+     __Dope => "/tmp", Data => $x );
 
  @list = 0..100; 
- Persistence::Object::Simple::commit 
-  ( undef, __Fn => '/tmp/datarefs/numbers', 
+ Persistence::Object::Simple->commit 
+  ( __Fn => '/tmp/datarefs/numbers', 
     Data => \@list; 
   ); 
 
- $list = Persistence::Object::Simple::load 
-  ( undef, __Fn => '/tmp/datarefs/numbers' ); 
+ $list = Persistence::Object::Simple->load 
+  ( __Fn => '/tmp/datarefs/numbers' ); 
 
  $" = "\n"; print "@$list"; 
 
